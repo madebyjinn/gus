@@ -1,0 +1,51 @@
+name: Gus
+options:
+  deploymentTarget:
+    macOS: "26.0"
+  bundleIdPrefix: com.madebyjinn
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    DEVELOPMENT_TEAM: JVN6RP7TSG   # madebyjinn. Building it yourself? Put your own team id here.
+    CODE_SIGN_STYLE: Automatic
+    ENABLE_HARDENED_RUNTIME: YES
+targets:
+  Gus:
+    type: application
+    platform: macOS
+    sources:
+      - Sources
+      - Shared
+      - {path: Resources/AppIcon.icns, buildPhase: resources, optional: true}
+      - {path: Resources/Otter, type: folder, buildPhase: resources}
+    info:
+      path: Config/Info.plist
+      properties:
+        CFBundleDisplayName: Gus
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleIconFile: AppIcon
+        LSUIElement: true
+        LSApplicationCategoryType: public.app-category.productivity
+        NSHumanReadableCopyright: "© madebyjinn"
+        NSContactsUsageDescription: "Gus searches your contacts as you type. Nothing leaves your Mac."
+        NSCalendarsFullAccessUsageDescription: "Gus shows today's events when you type “today” or “calendar”."
+        NSLocationUsageDescription: "Gus shows the weather where you are when you ask. Only rounded coordinates leave your Mac."
+        NSLocationWhenInUseUsageDescription: "Gus shows the weather where you are when you ask. Only rounded coordinates leave your Mac."
+        NSRemindersFullAccessUsageDescription: "Gus creates reminders when you type “remind me to …”."
+    entitlements:
+      path: Config/Gus.entitlements
+      properties:
+        com.apple.security.personal-information.addressbook: true
+        com.apple.security.personal-information.calendars: true
+        com.apple.security.personal-information.location: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.madebyjinn.gus
+        PRODUCT_NAME: Gus
+schemes:
+  Gus:
+    build: {targets: {Gus: all}}
+    run: {config: Debug}
