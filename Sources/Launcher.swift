@@ -24,6 +24,14 @@ final class Launcher: ObservableObject {
     private var savedSearch = ""
     /// The row under the pointer, if any: C copies it.
     @Published var hovered: Int?
+    /// You picked a row yourself (arrow keys, or a pointer that really moved) since the text last changed.
+    /// Until then every new list lands with the first row picked, scrolled into view.
+    private(set) var picked = false
+    /// Where the pointer was when the rows last changed under it. Rows sliding beneath a pointer that
+    /// hasn't moved fire hover events; those mustn't pick anything.
+    private var restingPointer: NSPoint?
+    /// Bumped whenever the list should go back to its top (new text, a fresh list).
+    @Published private(set) var scrollTop = 0
     /// A field inside Settings has the keyboard (an API key, a model name), so ⌫ belongs to it.
     var typingInSettings = false
     @Published var welcomeStep = 0
@@ -160,6 +168,8 @@ final class Launcher: ObservableObject {
     /// one go 30 ms later, merged into a single update, so the list changes once per pause, not twice.
     private func update() {
         if mode == .chat { return }
+        // Typing, new or more of it, puts the pick back on the first row.
+        resetPick()
         // Editing the question (or erasing it) leaves Apple Intelligence.
         Assistant.shared.clearAnswer()
         let q = query.trimmingCharacters(in: .whitespaces)
@@ -313,9 +323,35 @@ final class Launcher: ObservableObject {
         // height is the one thing that glides.
         let keepID = hits.indices.contains(selection) ? hits[selection].id : nil
         hits = sorted
-        // An answer that lands on top is what you asked for: pick it.
-        if sorted.first?.group == .answer, sorted.first?.id != keepID { selection = 0 }
-        else if let keepID, let i = sorted.firstIndex(where: { $0.id == keepID }), selection != 0 { selection = i } else { selection = 0 }
+        // The rows just moved under the pointer; only a real move of it picks one now.
+        restingPointer = NSEvent.mouseLocation
+        selection = Selection.pick(after: sorted.map(\.id), keeping: keepID, picked: picked,
+                                   answerOnTop: sorted.first?.group == .answer)
+    }
+
+    /// Back to the first row, scrolled to the top, and hover ignored until the pointer moves.
+    private func resetPick() {
+        picked = false
+        hovered = nil
+        selection = 0
+        restingPointer = NSEvent.mouseLocation
+        scrollTop &+= 1
+    }
+
+    /// A row reports the pointer over it. It picks the row only if the pointer has actually moved since
+    /// the rows last changed, not when the list relaid out under a still pointer.
+    func pointerOver(_ index: Int) {
+        if let resting = restingPointer {
+            guard NSEvent.mouseLocation != resting else { return }
+            restingPointer = nil
+        }
+        picked = true
+        hovered = index
+        if selection != index { selection = index }
+    }
+
+    func pointerLeft(_ index: Int) {
+        if hovered == index { hovered = nil }
     }
 
     // MARK: Answers: maths and money
@@ -482,6 +518,7 @@ final class Launcher: ObservableObject {
     func move(_ delta: Int) {
         let n = rowCount
         guard n > 0 else { return }
+        picked = true
         selection = (selection + delta + n) % n
     }
 

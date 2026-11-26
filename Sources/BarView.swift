@@ -242,6 +242,8 @@ private struct BarField: View {
                     .foregroundStyle(Z.onAccent)
                     .padding(.horizontal, Z.glass ? 10 : 8).frame(height: Z.glass ? 26 : 22)
                     .background(Capsule().fill(Z.accent))
+                    .lineLimit(1)
+                    .fixedSize()
                     .transition(.scale(scale: 0.8, anchor: .leading).combined(with: .opacity))
             }
             TextField(launcher.mode == .clipboard ? "Search clipboard" : launcher.mode == .settings ? "Search settings"
@@ -289,6 +291,8 @@ private struct BarField: View {
             }
             .font(Bar.hint)
             .foregroundStyle(Z.ink3)
+            .lineLimit(1)
+            .fixedSize()
             .contentShape(Rectangle())
             .onTapGesture { launcher.mode == .settings ? launcher.switchTo(.search) : launcher.toggleClipboard() }
             .animation(Z.Motion.smooth, value: launcher.mode)
@@ -310,6 +314,7 @@ private struct ResultList: View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(spacing: 0) {
+                    Color.clear.frame(height: 0).id(Self.top)
                     ForEach(Array(hits.enumerated()), id: \.element.id) { i, hit in
                         if let title = hit.group.title, i == 0 || hits[i - 1].group != hit.group {
                             Text(title).font(Bar.header).foregroundStyle(Bar.headerColor)
@@ -321,9 +326,8 @@ private struct ResultList: View {
                         HitRow(hit: hit, selected: i == launcher.selection)
                             .id(hit.id)
                             .onTapGesture { launcher.selection = i; launcher.activate() }
-                            .onHover { inside in
-                                if inside { launcher.selection = i; launcher.hovered = i }
-                                else if launcher.hovered == i { launcher.hovered = nil }
+                            .onContinuousHover { phase in
+                                if case .active = phase { launcher.pointerOver(i) } else { launcher.pointerLeft(i) }
                             }
                     }
                 }
@@ -332,11 +336,17 @@ private struct ResultList: View {
             .scrollIndicators(.never)
             .frame(height: min(listHeight(hits), Z.gus ? 330 : Z.glass ? 440 : 404))
             .onChange(of: launcher.selection) { _, s in
+                // The first row scrolls to the very top, so its group header shows too.
+                if s == 0 { proxy.scrollTo(Self.top, anchor: .top); return }
                 guard hits.indices.contains(s) else { return }
                 proxy.scrollTo(hits[s].id)
             }
+            .onChange(of: launcher.scrollTop) { proxy.scrollTo(Self.top, anchor: .top) }
+            .onChange(of: hits.first?.id) { if launcher.selection == 0 { proxy.scrollTo(Self.top, anchor: .top) } }
         }
     }
+
+    private static let top = "gus.top"
 
     private func listHeight(_ hits: [Hit]) -> CGFloat {
         var h: CGFloat = Bar.inset * 2
@@ -359,13 +369,18 @@ private struct HitRow: View {
                 Text(hit.title)
                     .font(hit.big ? Bar.bigTitle : Bar.title)
                     .foregroundStyle(Z.ink).lineLimit(1)
+                    .minimumScaleFactor(hit.big ? 0.6 : 1)
+                    .truncationMode(hit.group == .files ? .middle : .tail)
                 if let sub = hit.subtitle {
                     Text(sub).font(Bar.subtitle).foregroundStyle(Z.ink2).lineLimit(1)
+                        .truncationMode(hit.group == .files ? .middle : .tail)
                 }
             }
+            .layoutPriority(-1)
             Spacer(minLength: 8)
             if selected, let hint = hit.hint {
-                RowKeys(primary: hint, alternate: hit.alternateName, tab: hit.tabName, copies: hit.copyText != nil && hit.group != .files)
+                RowKeys(primary: hint, alternate: hit.alternateName, tab: hit.tabName, copies: hit.copyText != nil && hit.group != .files,
+                        quietOpen: hit.group == .contacts)
             }
         }
         .padding(.horizontal, Bar.rowPadding)
@@ -423,6 +438,7 @@ struct Keycap: View {
             Text(glyph)
                 .font(.system(size: 11.5, weight: .medium))
                 .foregroundStyle(.secondary)
+                .lineLimit(1).fixedSize()
                 .padding(.horizontal, 6)
                 .frame(minWidth: 22, minHeight: 20)
                 .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(.quaternary))
@@ -430,6 +446,7 @@ struct Keycap: View {
             Text(glyph)
                 .font(.system(size: 10.5, weight: .semibold, design: .rounded))
                 .foregroundStyle(Z.ink2)
+                .lineLimit(1).fixedSize()
                 .padding(.horizontal, 5)
                 .frame(minWidth: 18, minHeight: 18)
                 .background(Z.rect(5).fill(Z.sunken))
@@ -445,8 +462,13 @@ private struct RowKeys: View {
     let alternate: String?
     var tab: String? = nil
     var copies = false
+    /// Contacts: leave "Open ↩" off, so Copy and Call have room. Return still opens.
+    var quietOpen = false
     var body: some View {
         let alt = launcher.commandDown && alternate != nil
+        // Return opens: that goes without saying. On a contact the "Open ↩" pair is left off to give
+        // Copy and Call room. ⌘ still shows the other action.
+        let quietOpen = self.quietOpen && !alt && primary == "Open" && (copies || tab != nil)
         HStack(spacing: 6) {
             if copies && !alt && primary != "Copy" {
                 Text("Copy")
@@ -454,15 +476,19 @@ private struct RowKeys: View {
             }
             if let tab, !alt {
                 Text(tab)
-                Keycap("⇥").padding(.trailing, 6)
+                Keycap("⇥").padding(.trailing, quietOpen ? 0 : 6)
             }
-            Text(alt ? alternate! : primary)
-                .contentTransition(.opacity)
-            if alt { Keycap("⌘") }
-            Keycap("↩")
+            if !quietOpen {
+                Text(alt ? alternate! : primary)
+                    .contentTransition(.opacity)
+                if alt { Keycap("⌘") }
+                Keycap("↩")
+            }
         }
         .font(Bar.hint)
         .foregroundStyle(Z.ink2)
+        .lineLimit(1)
+        .fixedSize()
         .animation(Z.Motion.hover, value: alt)
         .transition(.opacity)
     }
@@ -494,13 +520,13 @@ private struct ClipboardList: View {
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(spacing: 0) {
+                            Color.clear.frame(height: 0).id("gus.clips.top")
                             ForEach(Array(clips.enumerated()), id: \.element.id) { i, clip in
                                 ClipRow(clip: clip, selected: i == launcher.selection)
                                     .id(clip.id)
                                     .onTapGesture { launcher.selection = i; launcher.activate() }
-                                    .onHover { inside in
-                                        if inside { launcher.selection = i; launcher.hovered = i }
-                                        else if launcher.hovered == i { launcher.hovered = nil }
+                                    .onContinuousHover { phase in
+                                        if case .active = phase { launcher.pointerOver(i) } else { launcher.pointerLeft(i) }
                                     }
                                     .contextMenu {
                                         Button("Copy") { launcher.selection = i; launcher.activate() }
@@ -513,9 +539,11 @@ private struct ClipboardList: View {
                     .scrollIndicators(.never)
                     .frame(height: min(CGFloat(clips.count) * Bar.clipRowHeight + Bar.inset * 2, Z.glass ? 440 : 404))
                     .onChange(of: launcher.selection) { _, s in
+                        if s == 0 { proxy.scrollTo("gus.clips.top", anchor: .top); return }
                         guard clips.indices.contains(s) else { return }
                         proxy.scrollTo(clips[s].id)
                     }
+                    .onChange(of: launcher.scrollTop) { proxy.scrollTo("gus.clips.top", anchor: .top) }
                 }
             }
         }
@@ -539,6 +567,7 @@ private struct ClipRow: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(clip.kind == .file ? (clip.text as NSString).lastPathComponent : clip.text.replacingOccurrences(of: "\n", with: " "))
                     .font(Bar.title).foregroundStyle(Z.ink).lineLimit(1)
+                    .truncationMode(clip.kind == .file ? .middle : .tail)
                 Text([clip.app, clip.date.formatted(.relative(presentation: .named))].compactMap { $0 }.joined(separator: " · "))
                     .font(Bar.subtitle).foregroundStyle(Z.ink2).lineLimit(1)
             }
@@ -571,6 +600,7 @@ private struct AnswerView: View {
                             VStack(alignment: .leading, spacing: 6) {
                                 if assistant.turns.count > 1 || launcher.mode == .chat {
                                     Text(turn.question).font(Z.glass ? .system(size: 13, weight: .semibold) : .system(size: 12, weight: .medium)).foregroundStyle(Z.ink2)
+                                        .lineLimit(3).fixedSize(horizontal: false, vertical: true)
                                 }
                                 HStack(alignment: .top, spacing: 10) {
                                     Image(systemName: Settings.shared.engine.symbol).font(.system(size: Z.glass ? 16 : 14)).foregroundStyle(Z.accent)
@@ -609,6 +639,7 @@ private struct AnswerView: View {
                     }
                 }
                 .font(Bar.hint).foregroundStyle(Z.ink2)
+                .lineLimit(1).fixedSize()
                 .frame(maxWidth: .infinity, alignment: .trailing)
             }
         }

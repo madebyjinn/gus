@@ -129,11 +129,15 @@ struct WelcomePane: View {
                     HitIcon(icon: .symbol(answer.symbol), size: 28)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(answer.title).font(.system(size: 22, weight: .medium).monospacedDigit()).foregroundStyle(Z.ink)
-                        Text(answer.subtitle).font(.system(size: 11)).foregroundStyle(Z.ink2)
+                            .lineLimit(1).minimumScaleFactor(0.6)
+                        Text(answer.subtitle).font(.system(size: 11)).foregroundStyle(Z.ink2).lineLimit(1)
                     }
-                    Spacer()
-                    Text("Copy").font(.system(size: 11.5)).foregroundStyle(Z.ink2)
-                    Keycap("↩")
+                    Spacer(minLength: 8)
+                    HStack(spacing: 6) {
+                        Text("Copy").font(.system(size: 11.5)).foregroundStyle(Z.ink2)
+                        Keycap("↩")
+                    }
+                    .lineLimit(1).fixedSize()
                 }
                 .padding(.horizontal, 12)
                 .frame(height: 56)
@@ -141,14 +145,11 @@ struct WelcomePane: View {
                 .transition(.opacity.combined(with: .scale(scale: 0.97, anchor: .top)))
             }
 
-            HStack(spacing: 6) {
-                ForEach(Self.ideas, id: \.self) { idea in
-                    Button(idea) {
-                        withAnimation(Z.Motion.smooth) { tried = idea }
-                        typing = true
-                    }
-                    .zButton(.filled)
-                }
+            // As many ideas as fit on one line, in the narrow Gus bubble too: a chip never wraps.
+            ViewThatFits(in: .horizontal) {
+                ideaChips(Self.ideas)
+                ideaChips(Array(Self.ideas.prefix(4)))
+                ideaChips(Array(Self.ideas.prefix(3)))
             }
         }
         .animation(Z.Motion.smooth, value: Self.answer(tried)?.title)
@@ -200,7 +201,7 @@ struct WelcomePane: View {
                 }
             }
             HStack(spacing: 14) {
-                Text("Accent").font(.system(size: 13)).foregroundStyle(Z.ink2)
+                Text("Accent").font(.system(size: 13)).foregroundStyle(Z.ink2).fixedSize()
                 AccentDots(selection: $settings.accent)
                 Spacer()
                 Text("Appearance").font(.system(size: 13)).foregroundStyle(Z.ink2).fixedSize()
@@ -237,6 +238,21 @@ struct WelcomePane: View {
 
     private func tip(_ key: String, _ label: String) -> some View {
         HStack(spacing: 6) { Keycap(key); Text(label).font(.system(size: 12)).foregroundStyle(Z.ink2) }
+            .lineLimit(1).fixedSize()
+    }
+
+    private func ideaChips(_ ideas: [String]) -> some View {
+        HStack(spacing: 6) {
+            ForEach(ideas, id: \.self) { idea in
+                Button(idea) {
+                    withAnimation(Z.Motion.smooth) { tried = idea }
+                    typing = true
+                }
+                .zButton(.filled)
+                .lineLimit(1)
+                .fixedSize()
+            }
+        }
     }
 }
 
@@ -314,6 +330,7 @@ private struct BigKeys: View {
                 Text(p)
                     .font(.system(size: 15, weight: .semibold, design: .rounded))
                     .foregroundStyle(Z.ink)
+                    .lineLimit(1).fixedSize()
                     .padding(.horizontal, p.count > 1 ? 10 : 0)
                     .frame(minWidth: 32, minHeight: 32)
                     .background(Z.rect(7).fill(Z.sunken))

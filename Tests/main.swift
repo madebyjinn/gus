@@ -106,5 +106,12 @@ check(draft("Remind me to Email Sarah")?.title == "Email Sarah", "capitals are k
 check(ReminderWhen.text(Date()).hasPrefix("Today"), "when: today")
 check(ReminderWhen.text(Date().addingTimeInterval(86400)).hasPrefix("Tomorrow"), "when: tomorrow")
 check(!ReminderWhen.text(Date().addingTimeInterval(5 * 86400)).hasPrefix("To"), "when: a later day shows its date")
+// Typing resets the pick to the first row; a row you picked yourself survives late results.
+check(Selection.pick(after: ["a", "b", "c"], keeping: "c", picked: false, answerOnTop: false) == 0, "pick: typing resets to the first row")
+check(Selection.pick(after: ["a", "b", "c"], keeping: "c", picked: true, answerOnTop: false) == 2, "pick: your row stays as results land")
+check(Selection.pick(after: ["x", "a", "c"], keeping: "c", picked: true, answerOnTop: false) == 2, "pick: your row is followed when it moves")
+check(Selection.pick(after: ["a", "b"], keeping: "c", picked: true, answerOnTop: false) == 0, "pick: your row gone, back to the first")
+check(Selection.pick(after: ["ans", "a", "c"], keeping: "c", picked: true, answerOnTop: true) == 0, "pick: an answer on top wins")
+check(Selection.pick(after: [], keeping: nil, picked: false, answerOnTop: false) == 0, "pick: empty list")
 print(fails == 0 ? "all tests passed" : "\(fails) failed")
 exit(fails == 0 ? 0 : 1)

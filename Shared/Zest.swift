@@ -252,14 +252,14 @@ struct ZRow<Trailing: View>: View {
             HStack(spacing: 10) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title).font(.body).foregroundStyle(dimmed ? .tertiary : .primary)
-                        .lineLimit(1).fixedSize(horizontal: true, vertical: false)
+                        .lineLimit(1).truncationMode(.middle)
                     if let subtitle {
                         Text(subtitle).font(.subheadline).foregroundStyle(dimmed ? .tertiary : .secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 Spacer(minLength: Z.Space.sm)
-                trailing
+                trailing.fixedSize()
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
@@ -274,14 +274,14 @@ struct ZRow<Trailing: View>: View {
             if let symbol { ZTile(symbol: symbol) }
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(Z.Font.body).foregroundStyle(dimmed ? Z.ink3 : Z.ink)
-                    .lineLimit(1).fixedSize(horizontal: true, vertical: false)
+                    .lineLimit(1).truncationMode(.middle)
                 if let subtitle {
                     Text(subtitle).font(Z.Font.caption).foregroundStyle(dimmed ? Z.ink3 : Z.ink2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
             Spacer(minLength: Z.Space.sm)
-            trailing
+            trailing.fixedSize()
         }
         .padding(.horizontal, Z.Space.md)
         .padding(.vertical, subtitle == nil ? 9 : 9)
